@@ -29,7 +29,7 @@ async def job_monitor(context):
                 ma_md5 = phien.get('_id', '0')
                 diem = (id_moi + int(ma_md5[-1], 16)) % 10
                 
-                ti_le = random.randint(85, 98)
+                ti_le = random.randint(63, 84)
                 ket_qua = "🟢 TÀI" if diem >= 5 else "🔴 XỈU"
                 
                 msg = (f"🌟 LC79 VIP SYSTEM 🌟\n"
