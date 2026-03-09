@@ -39,10 +39,10 @@ async def job_monitor(context):
                 id_moi = int(phien['id']) + 1
                 ma_md5 = phien.get('_id', '0')
                 diem = (id_moi + int(ma_md5[-1], 16)) % 10
-                ti_le = random.randint(74, 85)
+                ti_le = random.randint(74, 88)
                 ket_qua = "🟢 TÀI" if diem >= 5 else "🔴 XỈU"
                 
-                msg = (f"🌟 LC79 VIP SYSTEM 🌟\n🎯 Phiên: #{id_moi}\n"
+                msg = (f"🌟 LC79 VIP TUANX3000 🌟\n🎯 Phiên: #{id_moi}\n"
                        f"🔮 Dự đoán: {ket_qua}\n📊 Tỉ lệ chuẩn: {ti_le}%\n♾️ Mã MD5: {ma_md5}")
                 
                 await context.bot.send_message(chat_id=CHANNEL_ID, text=msg)
