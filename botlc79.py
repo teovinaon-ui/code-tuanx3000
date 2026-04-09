@@ -5,29 +5,36 @@ import logging
 import asyncio
 import threading
 from flask import Flask
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-# --- CẤU HÌNH ---
-TOKEN = "8229924024:AAFODSQbTdtEd3mRqSi1WDcCZQ4t5L-VBJE"   # Token mới
+# ====================== CẤU HÌNH ======================
+TOKEN = "8229924024:AAFODSQbTdtEd3mRqSi1WDcCZQ4t5L-VBJE"
+
 CHANNEL_ID = '-1003808692297'
-ADMIN_ID = 5838598093
+
+# === ADMIN IDS (đã thêm ID thứ 2) ===
+ADMIN_IDS = [5838598093, 8008481021]   # ID của bạn + @Tuanx3000
+
 API_URL = "https://wtxmd52.tele68.com/v1/txmd5/sessions?cp=R&cl=R&pf=web&at=988f9f949c6e90fc02d78a38563031f6"
 
 logging.basicConfig(level=logging.INFO)
 
-# --- WEB SERVER GIẢ LẬP ---
+# ====================== WEB SERVER ======================
 app_flask = Flask(__name__)
+
 @app_flask.route('/')
-def home(): return "Bot is running!"
+def home():
+    return "Bot is running!"
 
 def run_web():
     port = int(os.environ.get('PORT', 10000))
-    app_flask.run(host='0.0.0.0', port=port)
+    app_flask.run(host='0.0.0.0', port=port, debug=False)
 
-# --- LOGIC BOT ---
+# ====================== BIẾN TOÀN CỤC ======================
 bot_enabled = True
 last_session = None
 
+# ====================== HÀM CHÍNH ======================
 async def job_monitor(context):
     global last_session, bot_enabled
     if not bot_enabled:
@@ -45,7 +52,7 @@ async def job_monitor(context):
         id_moi = int(phien['id']) + 1
         ma_md5 = phien.get('_id', '0' * 32).lower()
 
-        # 1. PHÂN TÍCH MD5 SÂU
+        # Phân tích MD5
         last4 = ma_md5[-4:].zfill(4)
         last8 = ma_md5[-8:].zfill(8)
         last12 = ma_md5[-12:].zfill(12)
@@ -55,13 +62,13 @@ async def job_monitor(context):
         sum_hex = sum(int(c, 16) for c in last12)
         last_digit = int(ma_md5[-1], 16) if ma_md5 else 0
 
-        # 2. PHÂN TÍCH CẦU (10 phiên)
+        # Phân tích cầu
         recent = response['list'][:10]
         tai_count = sum(1 for p in recent if p.get('resultTruyenThong') == 'TAI' or p.get('point', 0) >= 5)
         xiu_count = 10 - tai_count
         trend_bias = (tai_count - xiu_count) * 2
 
-        # TÍNH TOÁN
+        # Tính toán
         base = (id_moi * 15 + val4 * 8 + val8 * 5 + last_digit * 10 + sum_hex * 3 + trend_bias)
         diem = base % 10
         diem = (diem + random.randint(0, 1)) % 10
@@ -85,18 +92,48 @@ async def job_monitor(context):
     except Exception as e:
         logging.error(f"Lỗi job_monitor: {e}")
 
+# ====================== COMMAND ADMIN ======================
 async def bat_tool(update, context):
+    if update.effective_user.id not in ADMIN_IDS:
+        return
     global bot_enabled
-    if update.effective_user.id != ADMIN_ID: return
     bot_enabled = True
     await update.message.reply_text("✅ Bot đã được BẬT.")
 
 async def tat_tool(update, context):
+    if update.effective_user.id not in ADMIN_IDS:
+        return
     global bot_enabled
-    if update.effective_user.id != ADMIN_ID: return
     bot_enabled = False
     await update.message.reply_text("❌ Bot đã được TẮT.")
 
+# ====================== CHỨC NĂNG LẤY USER ID ======================
+async def get_user_id(update, context):
+    user = update.effective_user
+    info = f"""👤 **User Info**
+
+ID: `{user.id}`
+First: {user.first_name}
+Last: {user.last_name or 'Không có'}
+Username: @{user.username if user.username else 'Không có'}
+Lang: {user.language_code or 'vi'}"""
+
+    await update.message.reply_text(info, parse_mode='Markdown')
+
+async def forward_to_get_id(update, context):
+    msg = update.message
+    if msg.forward_from:
+        target = msg.forward_from
+        info = f"""🔍 **ID từ Forward**
+
+ID: `{target.id}`
+Name: {target.first_name}
+Username: @{target.username if target.username else 'Không có'}"""
+        await msg.reply_text(info, parse_mode='Markdown')
+    else:
+        await msg.reply_text("❌ Hãy forward tin nhắn của ai đó để lấy User ID.")
+
+# ====================== KHỞI ĐỘNG BOT ======================
 if __name__ == '__main__':
     threading.Thread(target=run_web, daemon=True).start()
     
@@ -104,13 +141,22 @@ if __name__ == '__main__':
     asyncio.set_event_loop(loop)
     
     app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Xóa webhook cũ
     loop.run_until_complete(app.bot.delete_webhook())
     
+    # Job monitor
     if app.job_queue:
         app.job_queue.run_repeating(job_monitor, interval=30, first=5)
     
+    # Command admin
     app.add_handler(CommandHandler("battoollc79", bat_tool))
     app.add_handler(CommandHandler("tattoollc79", tat_tool))
     
-    logging.info("Bot đã khởi động thành công...")
+    # Chức năng lấy ID
+    app.add_handler(CommandHandler("start", get_user_id))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_user_id))
+    app.add_handler(MessageHandler(filters.FORWARDED, forward_to_get_id))
+    
+    logging.info("Bot đã khởi động thành công với multi admin và chức năng lấy User ID...")
     app.run_polling()
